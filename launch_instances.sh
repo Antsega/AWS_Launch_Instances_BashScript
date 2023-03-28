@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Test Test
+
 #Written by Anthony Segarra on 3/28/2023
 #usage: make script executable with chmod 744 script_name.sh
 #       to run from your terminal, type ./script_name.sh
