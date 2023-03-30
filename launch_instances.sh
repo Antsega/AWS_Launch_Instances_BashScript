@@ -1,6 +1,8 @@
 #!/bin/bash
 
 #Written by Anthony Segarra on 3/28/2023
+#usage: make script executable with chmod 744 script_name.sh
+#       to run from your terminal, type ./script_name.sh
 
 # Check if aws cli is installed
 if ! command -v aws &> /dev/null
@@ -17,24 +19,31 @@ if [ -z "$INSTANCE_IDS" ]
 then
     echo "No stopped instances found."
 else
+    # Start instances
     aws ec2 start-instances --instance-ids $INSTANCE_IDS
     echo "Starting instances: $INSTANCE_IDS"
-    # Counter for instances starting
-    echo -n "Waiting for instances to start: "
-    SECONDS=0
-    while [ "$(aws ec2 describe-instances --instance-ids $INSTANCE_IDS --query "Reservations[].Instances[].State[].Name" --output text)" != "running running running" ]; do
-        sleep 1
-        echo -n "."
+
+    # Wait for instances to be in running state
+    echo "Waiting for instances to start..."
+    START_TIME=$(date +%s)
+    RUNNING_INSTANCE_IDS=""
+    COUNTER=0
+    while [ -z "$RUNNING_INSTANCE_IDS" ] || [ "$COUNTER" -lt 10 ]
+    do
+        sleep 10
+        RUNNING_INSTANCE_IDS=$(aws ec2 describe-instances --filters Name=instance-state-name,Values=running --query "Reservations[].Instances[?InstanceId=='$INSTANCE_IDS'].PublicIpAddress" --output text)
+        echo -ne "Instances still starting... $((++COUNTER))0 seconds elapsed\r"
     done
-    echo ""
-    # Elapsed time
-    ELAPSED_TIME=$(date -u -d@"$SECONDS" +"%T")
-    echo "Instances started in $ELAPSED_TIME"
-    # Display instance info
-    for i in $INSTANCE_IDS; do
-        # Get the name and Public IPv4 address of the instance
-        NAME=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$i" "Name=key,Values=Name" --query "Tags[*].Value" --output text)
-        PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $i --query 'Reservations[].Instances[].PublicIpAddress' --output text)
-        echo "Instance Name: $NAME, Instance ID: $i, Public IP address: $PUBLIC_IP"
-    done
+    echo -e "\nInstances started successfully."
+
+    # Print instance details
+    echo "Instance details:"
+    echo "------------------"
+    echo "Instance Name\tInstance ID\tPublic IPv4"
+    echo "------------\t----------\t-----------"
+    aws ec2 describe-instances --filters Name=instance-state-name,Values=running --query "Reservations[].Instances[].Tags[?Key=='Name'].Value | [0], Instances[].InstanceId, Instances[].PublicIpAddress | [0,1,2]" --output text
+
+    END_TIME=$(date +%s)
+    ELAPSED_TIME=$((END_TIME - START_TIME))
+    echo "Total time elapsed: $ELAPSED_TIME seconds."
 fi
