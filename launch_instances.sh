@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# Test Test
-
 #Written by Anthony Segarra on 3/28/2023
 #usage: make script executable with chmod 744 script_name.sh
 #       to run from your terminal, type ./script_name.sh
@@ -27,8 +25,9 @@ else
         # Wait until the instance is running
         aws ec2 wait instance-running --instance-ids $i
 
-        # Get the Public IPv4 address of the instance
+        # Get the name and Public IPv4 address of the instance
+        NAME=$(aws ec2 describe-tags --filters "Name=resource-id,Values=$i" "Name=key,Values=Name" --query "Tags[*].Value" --output text)
         PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $i --query 'Reservations[].Instances[].PublicIpAddress' --output text)
-        echo "Public IP address of $i: $PUBLIC_IP"
+        echo "Instance Name: $NAME, Instance ID: $i, Public IP address: $PUBLIC_IP"
     done
 fi
