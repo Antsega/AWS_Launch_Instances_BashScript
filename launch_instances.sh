@@ -1,8 +1,8 @@
 #!/bin/bash
 
+# Test Test
+
 #Written by Anthony Segarra on 3/28/2023
-
-
 #usage: make script executable with chmod 744 script_name.sh
 #       to run from your terminal, type ./script_name.sh
 
@@ -13,17 +13,22 @@ then
     exit
 fi
 
-# Get instance IDs and Public IP addresses of all stopped instances
-STOPPED_INSTANCES=$(aws ec2 describe-instances --filters Name=instance-state-name,Values=stopped --query "Reservations[].Instances[].[InstanceId,PublicIpAddress]" --output text)
+# Get instance IDs of all stopped instances
+INSTANCE_IDS=$(aws ec2 describe-instances --filters Name=instance-state-name,Values=stopped --query "Reservations[].Instances[].InstanceId" --output text)
 
 # Start all stopped instances
-if [ -z "$STOPPED_INSTANCES" ]
+if [ -z "$INSTANCE_IDS" ]
 then
     echo "No stopped instances found."
 else
-    INSTANCE_IDS=$(echo "$STOPPED_INSTANCES" | awk '{print $1}')
-    PUBLIC_IPS=$(echo "$STOPPED_INSTANCES" | awk '{print $2}')
     aws ec2 start-instances --instance-ids $INSTANCE_IDS
     echo "Starting instances: $INSTANCE_IDS"
-    echo "Public IP addresses: $PUBLIC_IPS"
+    for i in $INSTANCE_IDS; do
+        # Wait until the instance is running
+        aws ec2 wait instance-running --instance-ids $i
+
+        # Get the Public IPv4 address of the instance
+        PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $i --query 'Reservations[].Instances[].PublicIpAddress' --output text)
+        echo "Public IP address of $i: $PUBLIC_IP"
+    done
 fi
