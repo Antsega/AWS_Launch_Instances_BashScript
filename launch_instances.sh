@@ -19,31 +19,33 @@ if [ -z "$INSTANCE_IDS" ]
 then
     echo "No stopped instances found."
 else
-    # Start instances
-    aws ec2 start-instances --instance-ids $INSTANCE_IDS
-    echo "Starting instances: $INSTANCE_IDS"
-
-    # Wait for instances to be in running state
-    echo "Waiting for instances to start..."
     START_TIME=$(date +%s)
-    RUNNING_INSTANCE_IDS=""
+    echo "Starting instances:"
     COUNTER=0
-    while [ -z "$RUNNING_INSTANCE_IDS" ] || [ "$COUNTER" -lt 10 ]
+    for INSTANCE_ID in $INSTANCE_IDS
     do
-        sleep 10
-        RUNNING_INSTANCE_IDS=$(aws ec2 describe-instances --filters Name=instance-state-name,Values=running --query "Reservations[].Instances[?InstanceId=='$INSTANCE_IDS'].PublicIpAddress" --output text)
-        echo -ne "Instances still starting... $((++COUNTER))0 seconds elapsed\r"
+        ((COUNTER++))
+        INSTANCE_NAME=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query "Reservations[].Instances[].Tags[?Key=='Name'].Value" --output text)
+        echo "$COUNTER. $INSTANCE_NAME (Instance ID: $INSTANCE_ID)"
+        aws ec2 start-instances --instance-ids $INSTANCE_ID > /dev/null
     done
-    echo -e "\nInstances started successfully."
 
-    # Print instance details
-    echo "Instance details:"
-    echo "------------------"
-    echo "Instance Name\tInstance ID\tPublic IPv4"
-    echo "------------\t----------\t-----------"
-    aws ec2 describe-instances --filters Name=instance-state-name,Values=running --query "Reservations[].Instances[].Tags[?Key=='Name'].Value | [0], Instances[].InstanceId, Instances[].PublicIpAddress | [0,1,2]" --output text
-
+    # Wait for instances to start
+    echo "Waiting for instances to start..."
+    while [ $(aws ec2 describe-instances --instance-ids $INSTANCE_IDS --query 'Reservations[].Instances[?State.Name==`running`].InstanceId' --output text | wc -w) -ne $(echo $INSTANCE_IDS | wc -w) ]
+    do
+        sleep 5
+    done
     END_TIME=$(date +%s)
     ELAPSED_TIME=$((END_TIME - START_TIME))
-    echo "Total time elapsed: $ELAPSED_TIME seconds."
+    echo "All instances are now running. Elapsed time: $ELAPSED_TIME seconds."
+    
+    # Get the public IP addresses of the instances
+    echo "Public IP addresses of started instances:"
+    for INSTANCE_ID in $INSTANCE_IDS
+    do
+        INSTANCE_NAME=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query "Reservations[].Instances[].Tags[?Key=='Name'].Value" --output text)
+        IPV4=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query "Reservations[].Instances[].PublicIpAddress" --output text)
+        echo "$INSTANCE_NAME (Instance ID: $INSTANCE_ID): $IPV4"
+    done
 fi
